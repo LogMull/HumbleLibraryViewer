@@ -1,0 +1,8 @@
+services:
+
+  humble:
+    image: humble
+    container_name: humble
+    build: .
+    ports:
+    - 8080:8080
