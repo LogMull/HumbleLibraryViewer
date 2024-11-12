@@ -1,19 +1,14 @@
 {
   "dependencies": {
+    "express": "^4.21.1",
     "yarn": "^1.22.22"
   },
   "name": "HumbleLibraryViewer",
   "version": "1.0.0",
   "main": "index.js",
-  "repository": "https://github.com/LogMull/HumbleLibraryViewer.git",
-  "author": "LogMull <logmull@gmail.com>",
+  "repository": "https://github.com/LogMull/HumbleLibraryViewer",
   "license": "MIT",
-  "devDependencies": {
-    "electron": "^33.2.0"
-  },
-  
-    "scripts": {
-      "start": "electron ."
-    
-  }
+ "scripts": {
+    "start":"node server/server.js"
+}
 }
