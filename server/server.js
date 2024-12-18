@@ -1,14 +1,20 @@
 import fs from 'node:fs';
-
+import cors from 'cors';
 import express from "express";
 const app = express();
+app.use(cors());
+app.use(express.json());
+
 
 app.get("/", function(req, res) {
     return res.send("Hello World");
 });
+app.get("/api/message", function(req, res) {
+    return res.send("Hello yellow");
+});
 
 app.get("/sample", function(req, res) {
-    fs.readFile('/app/sampleData.json', 'utf8', (err, data) => {
+    fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8', (err, data) => {
         if (err) {
           console.error(err);
           return;

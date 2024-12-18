@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "express": "^4.21.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "yarn": "^1.22.22"
   },
   "name": "HumbleLibraryViewer",
@@ -8,7 +9,7 @@
   "main": "index.js",
   "repository": "https://github.com/LogMull/HumbleLibraryViewer",
   "license": "MIT",
- "scripts": {
-    "start":"node server/server.js"
-}
+  "scripts": {
+    "start": "node server/server.js"
+  }
 }
