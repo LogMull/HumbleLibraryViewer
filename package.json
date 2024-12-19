@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "ag-grid-community": "^33.0.2",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "yarn": "^1.22.22"
@@ -10,6 +11,10 @@
   "repository": "https://github.com/LogMull/HumbleLibraryViewer",
   "license": "MIT",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
   }
 }
