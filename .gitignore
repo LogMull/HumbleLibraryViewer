@@ -130,3 +130,4 @@ dist
 .pnp.*
 
 sampleData.json
+*.lock
