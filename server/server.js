@@ -7,16 +7,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+import {db,queries} from './databaseManager.js'
+import { json } from 'node:stream/consumers';
+import e from 'cors';
+
+//const db = require('./databaseManager')
 
 app.get("/", function(req, res) {
-    return res.send("Hello World");
+    return res.send("Hello World"); 
 });
 app.get("/api/message", function(req, res) {
     return res.send("Hello yellow");
 });
 
 app.get("/sample", function(req, res) {
-    fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8', (err, data) => {
+    fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
         if (err) {
           console.error(err);
           return;
@@ -38,21 +43,43 @@ app.get("/sample", function(req, res) {
         // Start with storefront, those are pretty easy.
         let skip=false;
         const gridData=[];
+        const choiceRequests=[]
         for (let item of json){
           if (skip) continue;
-          let data = {};
+
           if (item.product.category=='storefront'){
           
-            processStoreItem(item,gridData);
+            // processStoreItem(item,gridData);
           }
-          if (item.product.category=='bundle'){
-            processBundleItem(item,gridData);
+          else if (item.product.category=='bundle'){
+            // processBundleItem(item,gridData);
           }
-          if (item.product.choice_url){
-            processChoiceItem(item,gridData);
-            skip=true
+          else if (item.product.choice_url){
+            // For each choice entry, we need to 
+            //  1) Determine a list of all games included in the bundle
+            //  2) Determine which games from that list have been included already
+
+            // To handle this, for each choice url, query the database and see if we have an entry for this choice.
+            // If so, move on
+            // Otherwise, we will grab the contents of the corresponding page, parse out the content containing game data and build our structures.
+            const stmt = db.prepare(queries.checkChoiceExists);
+            const row = stmt.get('item.product.choice_url');
+            // console.log('Row ');
+            // console.log(row);
+            // If the row does not exist, grab data from the bundle page.
+            if (!row.row_exists){
+              choiceRequests.push(processChoiceItem(item,gridData));
+            }else{
+              // The above is async, so it will handle all of setting up the game data.
+              // If we have the bundle data already, set the claimed status for what we can.
+            }
+            
+            
+            console.log("Finished "+item.product.choice_url)
+            //skip=true
           }
         }
+        await Promise.all(choiceRequests);
         return res.send(gridData)
 
       });
@@ -87,9 +114,64 @@ function processBundleItem(item,gridData){
 app.listen(3000, function(){
     console.log('Listening on port 3000');
 });
+
+// Processing choice items is a bit of a pain.
+// The current approach is to curl the page and look for a specific script on the page
+// That script has a dump of the data that we can use to build out our structures
+// HOWEVER it appears that the form of that data has changed over time, which makes this messier.
+// This function will handle building the DB of games included in the bundle.
 async function processChoiceItem(item,gridData){
-  const scriptbody = fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
-  console.log(scriptbody)
+  const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
+  //console.log(scriptbody);
+  const choiceBody = JSON.parse(scriptbody);
+  // console.log(choiceBody.contentChoiceOptions.contentChoiceData)
+  let rootObj = choiceBody.contentChoiceOptions.contentChoiceData;
+  
+  // 2020-2021 use ['initial-get-all-games']['content_choices']
+  let tempObj = rootObj['initial-get-all-games']
+  let gamesObj = tempObj?.content_choices;
+  if (gamesObj){ // Aug2020-jan2021
+    processChoiceItemInternal(gamesObj,gridData, item.product.human_name);
+    
+  }else if (rootObj.game_data){ // 2022-2024 use this.
+    processChoiceItemInternal(rootObj.game_data,gridData, item.product.human_name);
+    //return;
+  }else if (rootObj.initial?.content_choices){ // dec2019 + 2020-2021,
+    processChoiceItemInternal(rootObj.initial.content_choices,gridData, item.product.human_name);
+  }else{
+    console.log(' Did not match '+item.product.choice_url)
+  }
+
+
+ 
+}
+// Seems like the data is consistently stored once the structure is found.
+function processChoiceItemInternal(gamesObj,gridData,bundleName){
+  console.log("Checking "+bundleName)
+  for (let gameEntry in gamesObj){
+    // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
+    const gameBase = gamesObj[gameEntry];
+    const data = {
+      bundle:bundleName
+    }
+    let claimed;
+    let name;
+    if (gameBase.tpkds){
+      const gameData = gameBase.tpkds[0];
+      //claimed = gameData.gamekey!=null;
+      name = gameData.human_name;
+    }else{
+      name = gameBase.title
+    }
+    
+    // const gameData = gameEntry.tpkds[0];
+    // console.log(gameData)
+    //data.claimed = claimed
+    data.name=name;
+      
+    
+      gridData.push(data);
+  }
 }
 /// Get a webpage and parse it to find a script tag. For example
 //  https://www.humblebundle.com/membership/october-2022 id =webpack-monthly-product-data
@@ -106,7 +188,7 @@ async function fetchScriptContent(url, scriptId) {
     const scriptContent = $(`script#${scriptId}`).html();
 
     if (scriptContent) {
-      console.log(`Contents of <script id="${scriptId}">:\n`, scriptContent);
+      //console.log(`Contents of <script id="${scriptId}">:\n`, scriptContent);
       return scriptContent;
     } else {
       console.log(`No <script id="${scriptId}"> found in the page.`);
