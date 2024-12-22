@@ -135,19 +135,16 @@ async function processChoiceItem(item,gridData){
     
   }else if (rootObj.game_data){ // 2022-2024 use this.
     processChoiceItemInternal(rootObj.game_data,gridData, item.product.human_name);
-    //return;
   }else if (rootObj.initial?.content_choices){ // dec2019 + 2020-2021,
     processChoiceItemInternal(rootObj.initial.content_choices,gridData, item.product.human_name);
   }else{
-    console.log(' Did not match '+item.product.choice_url)
+    console.log('Did not match '+item.product.choice_url)
   }
 
-
- 
 }
 // Seems like the data is consistently stored once the structure is found.
 function processChoiceItemInternal(gamesObj,gridData,bundleName){
-  console.log("Checking "+bundleName)
+  //console.log("Checking "+bundleName)
   for (let gameEntry in gamesObj){
     // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
     const gameBase = gamesObj[gameEntry];
@@ -158,15 +155,12 @@ function processChoiceItemInternal(gamesObj,gridData,bundleName){
     let name;
     if (gameBase.tpkds){
       const gameData = gameBase.tpkds[0];
-      //claimed = gameData.gamekey!=null;
+      
       name = gameData.human_name;
     }else{
       name = gameBase.title
     }
-    
-    // const gameData = gameEntry.tpkds[0];
-    // console.log(gameData)
-    //data.claimed = claimed
+
     data.name=name;
       
     
