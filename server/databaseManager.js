@@ -30,16 +30,17 @@ const scripts =[`CREATE TABLE IF NOT EXISTS game (
         steamAppId INTEGER NOT NULL,
         humble_id TEXT,
         name TEXT NOT NULL,
-        bundle TEXT,
+        bundle_id INTEGER REFERENCES bundle(id),
         claimed BOOLEAN DEFAULT 0,
         created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         tags TEXT
     ); `,
 // Create a table represnet choice bundles
-`CREATE TABLE IF NOT EXISTS choice_bundle (
+`CREATE TABLE IF NOT EXISTS bundle (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    humble_id INTEGER NOT NULL,
+    humble_id INTEGER,
+    choice_url text,
     name TEXT NOT NULL    
 ); `,
 //  `CREATE TABLE IF NOT EXISTS choice_games (
@@ -63,7 +64,9 @@ const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table';").
 console.log("Existing tables:", tables);
 
 const queries ={
-  "checkChoiceExists": `SELECT exists(SELECT 1 FROM choice_bundle WHERE name = ?) AS row_exists; `
+  "checkChoiceExists": `SELECT exists(SELECT 1 FROM bundle WHERE name = ?) AS row_exists; `,
+  "insertChoiceGame": `INSERT into game (steamAppId,name,bundle_id) VALUES (?, ?, ?);`,
+  "insertChoiceBundle": `INSERT into bundle (name,choice_url) VALUES (?,?)`
 
 }
 module.exports = {

@@ -63,7 +63,7 @@ app.get("/sample", function(req, res) {
             // If so, move on
             // Otherwise, we will grab the contents of the corresponding page, parse out the content containing game data and build our structures.
             const stmt = db.prepare(queries.checkChoiceExists);
-            const row = stmt.get('item.product.choice_url');
+            const row = stmt.get(item.product.choice_url);
             // console.log('Row ');
             // console.log(row);
             // If the row does not exist, grab data from the bundle page.
@@ -75,8 +75,14 @@ app.get("/sample", function(req, res) {
             }
             
             
-            console.log("Finished "+item.product.choice_url)
+            //console.log("Finished "+item.product.choice_url)
             //skip=true
+          }else if (item.product.category=='subscriptioncontent' && item.product.machine_name.includes('monthly')){
+            // Lgeacy monthly bundles seem to act the same as regular bundles.  pog
+            processBundleItem(item,gridData);
+          }else{
+            if (item.product.category!='subscriptionplan')
+            console.log(item.product)
           }
         }
         await Promise.all(choiceRequests);
@@ -121,50 +127,53 @@ app.listen(3000, function(){
 // HOWEVER it appears that the form of that data has changed over time, which makes this messier.
 // This function will handle building the DB of games included in the bundle.
 async function processChoiceItem(item,gridData){
+  // Get the script content from the page.
   const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
-  //console.log(scriptbody);
+  // Parse it to a json.
   const choiceBody = JSON.parse(scriptbody);
-  // console.log(choiceBody.contentChoiceOptions.contentChoiceData)
-  let rootObj = choiceBody.contentChoiceOptions.contentChoiceData;
+  // Create the bundle entry so that we can relate games to it.
+  const insert = db.prepare(queries.insertChoiceBundle);
+  const info = insert.run(item.product.human_name,item.product.choice_url);
+  // Key to the insert is stored here
+  const choice_id = info.lastInsertRowid
+  // Force a write
+  db.pragma('wal_checkpoint(TRUNCATE)');
   
+  let rootObj = choiceBody.contentChoiceOptions.contentChoiceData;
   // 2020-2021 use ['initial-get-all-games']['content_choices']
   let tempObj = rootObj['initial-get-all-games']
   let gamesObj = tempObj?.content_choices;
   if (gamesObj){ // Aug2020-jan2021
-    processChoiceItemInternal(gamesObj,gridData, item.product.human_name);
-    
+    createChoiceGame(gamesObj,choice_id);
   }else if (rootObj.game_data){ // 2022-2024 use this.
-    processChoiceItemInternal(rootObj.game_data,gridData, item.product.human_name);
+    createChoiceGame(rootObj.game_data,choice_id);
   }else if (rootObj.initial?.content_choices){ // dec2019 + 2020-2021,
-    processChoiceItemInternal(rootObj.initial.content_choices,gridData, item.product.human_name);
+    createChoiceGame(rootObj.initial.content_choices,choice_id);
   }else{
     console.log('Did not match '+item.product.choice_url)
   }
 
+  db.pragma('wal_checkpoint(TRUNCATE)');
 }
-// Seems like the data is consistently stored once the structure is found.
-function processChoiceItemInternal(gamesObj,gridData,bundleName){
-  //console.log("Checking "+bundleName)
+// Data is stored pretty consistently once we find the similar structure.
+// This function will handle creating the database entry for this game.
+// This will NOT handle the claimed flag, just the base frame of the game definition.
+// This is so that we can consistently set the claimed state in a shared function.
+function createChoiceGame(gamesObj,choice_id) {
+  const insert = db.prepare(queries.insertChoiceGame);
+  // Iterate over all games
   for (let gameEntry in gamesObj){
     // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
     const gameBase = gamesObj[gameEntry];
-    const data = {
-      bundle:bundleName
-    }
-    let claimed;
-    let name;
+    let steamAppId ='-1';
+    let name='';
     if (gameBase.tpkds){
       const gameData = gameBase.tpkds[0];
-      
+      steamAppId = gameData.steam_app_id;
       name = gameData.human_name;
-    }else{
-      name = gameBase.title
     }
-
-    data.name=name;
-      
-    
-      gridData.push(data);
+    // Insert the game definition. Name, steamappid and choice bundle id are included here.
+    insert.run(steamAppId,name,choice_id);
   }
 }
 /// Get a webpage and parse it to find a script tag. For example
