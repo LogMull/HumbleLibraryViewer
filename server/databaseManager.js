@@ -64,9 +64,12 @@ const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table';").
 console.log("Existing tables:", tables);
 
 const queries ={
-  "checkChoiceExists": `SELECT exists(SELECT 1 FROM bundle WHERE name = ?) AS row_exists; `,
+  "checkChoiceExists": `SELECT exists(SELECT 1 FROM bundle WHERE choice_url = ?) AS row_exists; `,
   "insertChoiceGame": `INSERT into game (steamAppId,name,bundle_id) VALUES (?, ?, ?);`,
-  "insertChoiceBundle": `INSERT into bundle (name,choice_url) VALUES (?,?)`
+  "insertChoiceBundle": `INSERT into bundle (name,choice_url) VALUES (?,?)`,
+  "getGamesByBundle": `SELECT * FROM game where bundle_id = ?`,
+  "getBundleByChoiceUrl": `SELECT * from bundle where choice_url = ?`,
+  "setGameClaimed":`UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?`
 
 }
 module.exports = {

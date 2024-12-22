@@ -62,17 +62,20 @@ app.get("/sample", function(req, res) {
             // To handle this, for each choice url, query the database and see if we have an entry for this choice.
             // If so, move on
             // Otherwise, we will grab the contents of the corresponding page, parse out the content containing game data and build our structures.
-            const stmt = db.prepare(queries.checkChoiceExists);
+            const stmt = db.prepare(queries.getBundleByChoiceUrl);
             const row = stmt.get(item.product.choice_url);
             // console.log('Row ');
-            // console.log(row);
+            console.log(row);
             // If the row does not exist, grab data from the bundle page.
-            if (!row.row_exists){
+            if (row==undefined){
               choiceRequests.push(processChoiceItem(item,gridData));
             }else{
               // The above is async, so it will handle all of setting up the game data.
               // If we have the bundle data already, set the claimed status for what we can.
+              const choice_id  = row.id;
+              checkChoiceGamesClaimed(item,choice_id);
             }
+        
             
             
             //console.log("Finished "+item.product.choice_url)
@@ -81,8 +84,8 @@ app.get("/sample", function(req, res) {
             // Lgeacy monthly bundles seem to act the same as regular bundles.  pog
             processBundleItem(item,gridData);
           }else{
-            if (item.product.category!='subscriptionplan')
-            console.log(item.product)
+            // if (item.product.category!='subscriptionplan')
+            //console.log(item.product)
           }
         }
         await Promise.all(choiceRequests);
@@ -90,6 +93,20 @@ app.get("/sample", function(req, res) {
 
       });
 });
+
+// This function will look over the games in item.tpkd_dict.all_tpks and update the corresponding game, setting claimed=1
+function checkChoiceGamesClaimed(item,choice_id){
+  for (let gameDef of item.tpkd_dict.all_tpks){
+    if (gameDef.redeemed_key_val){ 
+      // Update the key to be claimed.
+      // UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?
+      const stmt= db.prepare(queries.setGameClaimed);
+
+      const info = stmt.run(choice_id,gameDef.steam_app_id);
+    }
+  }
+  db.pragma('wal_checkpoint(TRUNCATE)');
+}
 // Handler for direct store items
 // Not 100% certain what this means, direct store purchases for sure
 // Maybe also gift purchases, promos and misc stuff?
@@ -127,8 +144,10 @@ app.listen(3000, function(){
 // HOWEVER it appears that the form of that data has changed over time, which makes this messier.
 // This function will handle building the DB of games included in the bundle.
 async function processChoiceItem(item,gridData){
+  
   // Get the script content from the page.
   const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
+  console.log('Checking '+item.product.choice_url)
   // Parse it to a json.
   const choiceBody = JSON.parse(scriptbody);
   // Create the bundle entry so that we can relate games to it.
@@ -144,22 +163,25 @@ async function processChoiceItem(item,gridData){
   let tempObj = rootObj['initial-get-all-games']
   let gamesObj = tempObj?.content_choices;
   if (gamesObj){ // Aug2020-jan2021
-    createChoiceGame(gamesObj,choice_id);
+    createChoiceGames(gamesObj,choice_id);
   }else if (rootObj.game_data){ // 2022-2024 use this.
-    createChoiceGame(rootObj.game_data,choice_id);
+    createChoiceGames(rootObj.game_data,choice_id);
   }else if (rootObj.initial?.content_choices){ // dec2019 + 2020-2021,
-    createChoiceGame(rootObj.initial.content_choices,choice_id);
+    createChoiceGames(rootObj.initial.content_choices,choice_id);
   }else{
     console.log('Did not match '+item.product.choice_url)
   }
 
   db.pragma('wal_checkpoint(TRUNCATE)');
+  checkChoiceGamesClaimed(item,choice_id);
+  //console.log(gamesByBundle)
+
 }
 // Data is stored pretty consistently once we find the similar structure.
 // This function will handle creating the database entry for this game.
 // This will NOT handle the claimed flag, just the base frame of the game definition.
 // This is so that we can consistently set the claimed state in a shared function.
-function createChoiceGame(gamesObj,choice_id) {
+function createChoiceGames(gamesObj,choice_id) {
   const insert = db.prepare(queries.insertChoiceGame);
   // Iterate over all games
   for (let gameEntry in gamesObj){
@@ -171,6 +193,10 @@ function createChoiceGame(gamesObj,choice_id) {
       const gameData = gameBase.tpkds[0];
       steamAppId = gameData.steam_app_id;
       name = gameData.human_name;
+      if(!steamAppId || gameData.key_type != 'steam'){
+        //console.log(gameData)
+        continue;
+      }
     }
     // Insert the game definition. Name, steamappid and choice bundle id are included here.
     insert.run(steamAppId,name,choice_id);
