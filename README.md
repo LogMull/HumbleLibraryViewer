@@ -35,3 +35,11 @@ https://medium.com/@hminnovance/create-a-modern-web-app-with-node-express-and-vu
         Hide claimed items
         Hide choice
     
+
+    Some games are getting an ID of -1, despite appearing in the steam app list from the steam API - should look into this
+
+    Determine how to handle titles that we can't do (Tiny and Bigs: Grandpa's Adventure vs Tiny and Bigs in ....)
+
+    Endpoint to build grid data
+
+    Tag retrieval 

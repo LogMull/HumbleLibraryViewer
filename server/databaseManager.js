@@ -41,8 +41,18 @@ const scripts =[`CREATE TABLE IF NOT EXISTS game (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     humble_id INTEGER,
     choice_url text,
-    name TEXT NOT NULL    
+    uid text,
+    name TEXT NOT NULL,
+    UNIQUE(uid)
 ); `,
+`CREATE TABLE IF NOT EXISTS steamApp (
+  id INTEGER PRIMARY KEY,
+  name text  
+)`,
+`CREATE TABLE IF NOT EXISTS system (
+  sys_key text
+  sys_value text
+)`
 //  `CREATE TABLE IF NOT EXISTS choice_games (
 //     id INTEGER PRIMARY KEY AUTOINCREMENT,
 //     choice_id INTEGER REFERENCES choice_bundle(id),
@@ -65,11 +75,14 @@ console.log("Existing tables:", tables);
 
 const queries ={
   "checkChoiceExists": `SELECT exists(SELECT 1 FROM bundle WHERE choice_url = ?) AS row_exists; `,
-  "insertChoiceGame": `INSERT into game (steamAppId,name,bundle_id) VALUES (?, ?, ?);`,
+  "insertGame": `INSERT into game (steamAppId,name,bundle_id,claimed) VALUES (?, ?, ?,?);`,
+  "insertBundle": `INSERT or IGNORE into bundle (name,uid) VALUES (?,?)`,
   "insertChoiceBundle": `INSERT into bundle (name,choice_url) VALUES (?,?)`,
   "getGamesByBundle": `SELECT * FROM game where bundle_id = ?`,
   "getBundleByChoiceUrl": `SELECT * from bundle where choice_url = ?`,
-  "setGameClaimed":`UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?`
+  "setGameClaimed":`UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?`,
+  "insertSteamApp":`INSERT or IGNORE into steamApp (id,name) values (?,?)`,
+  "getSteamAppByName": `SELECT id from steamApp where name = ? COLLATE NOCASE` // ensure case-insensitive
 
 }
 module.exports = {
