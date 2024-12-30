@@ -46,7 +46,8 @@ const scripts =[`CREATE TABLE IF NOT EXISTS game (
     UNIQUE(uid)
 ); `,
 `CREATE TABLE IF NOT EXISTS steamApp (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  steam_app_id INTEGER,
   name text  
 )`,
 `CREATE TABLE IF NOT EXISTS system (
@@ -74,15 +75,16 @@ const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table';").
 console.log("Existing tables:", tables);
 
 const queries ={
-  "checkChoiceExists": `SELECT exists(SELECT 1 FROM bundle WHERE choice_url = ?) AS row_exists; `,
+  
   "insertGame": `INSERT into game (steamAppId,name,bundle_id,claimed) VALUES (?, ?, ?,?);`,
   "insertBundle": `INSERT or IGNORE into bundle (name,uid) VALUES (?,?)`,
   "insertChoiceBundle": `INSERT into bundle (name,choice_url) VALUES (?,?)`,
   "getGamesByBundle": `SELECT * FROM game where bundle_id = ?`,
   "getBundleByChoiceUrl": `SELECT * from bundle where choice_url = ?`,
+  "getBundleByUid":`SELECT * from bundle where uid = ?`,
   "setGameClaimed":`UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?`,
-  "insertSteamApp":`INSERT or IGNORE into steamApp (id,name) values (?,?)`,
-  "getSteamAppByName": `SELECT id from steamApp where name = ? COLLATE NOCASE` // ensure case-insensitive
+  "insertSteamApp":`INSERT or IGNORE into steamApp (steam_app_id,name) values (?,?)`,
+  "getSteamAppByName": `SELECT steam_app_id from steamApp where name = ? COLLATE NOCASE` // ensure case-insensitive
 
 }
 module.exports = {

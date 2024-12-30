@@ -45,7 +45,7 @@ app.get("/api/loadSampleData", (req,res) => {
       if (skip) continue;
       // Storefront are straight forward.
       if (item.product.category=='storefront'){
-        //processStoreItem(item);
+        processStoreItem(item);
       }
       else if (item.product.category=='bundle'){
         processBundleItem(item);
@@ -133,12 +133,26 @@ function processStoreItem(item){
 }
 // Handler for items within bundles
 function processBundleItem(item){
+  // Grab list of items and the bundle name
   const bundleName = item.product.human_name;
   const bundleItems = item.tpkd_dict.all_tpks;
-  const insertBundle = db.prepare(queries.insertBundle);
-  let info = insertBundle.run(bundleName,item.uid);
-  console.log(bundleName,item.uid,info)
+  // Check if this bundle exists in the db already or not.
+  const bundleRow = db.prepare(queries.getBundleByUid).get(item.uid);
+  let bundleId = '';
+  let info;
+  // If so, get the row id
+  if (bundleRow){
+    bundleId = bundleRow.id;
+  }else{
+    // Otherwise, insert the row and track the id
+    const insertBundle = db.prepare(queries.insertBundle);
+    info = insertBundle.run(bundleName,item.uid);
+    bundleId = info.lastInsertRowid;
+    //console.log(bundleName,item.uid,info)
   db.pragma('wal_checkpoint(TRUNCATE)'); 
+  }
+  
+  
   const insert = db.prepare(queries.insertGame);
   for (const bundleItem of bundleItems){
     // Only care about steam tbh
@@ -150,10 +164,22 @@ function processBundleItem(item){
     if (steamAppId == null){
       steamAppId = getSteamAppIdByName(bundleItem.human_name);
     }
-    if (steamAppId == -1)
-      console.log(steamAppId,bundleItem.human_name,info.lastInsertRowid,bundleItem.redeemed_key_val?1:0);
+    // If we still cannot find it, that is fine, it just means we can't get details about it.
+    if (steamAppId==-1){
+      console.log (steamAppId,bundleItem.human_name,bundleId,bundleItem.redeemed_key_val?1:0);
+      // console.log(info)
+      // console.log(bundleRow)
 
-    insert.run(steamAppId,bundleItem.human_name,info.lastInsertRowid,bundleItem.redeemed_key_val?1:0);
+    }
+    try{
+      // TODO - Cleanup, should not need to be in a try/catch when it is finished.
+      insert.run(steamAppId,bundleItem.human_name,bundleId,bundleItem.redeemed_key_val?1:0);
+    }
+    catch (ex){
+      console.log(ex);
+      console.log (steamAppId,bundleItem.human_name,bundleId,bundleItem.redeemed_key_val?1:0);
+    }
+    
   }
 }
 app.listen(3000, function(){
@@ -267,11 +293,27 @@ async function getAllSteamApps(){
   //console.log(allApps)
   const insert = db.prepare(queries.insertSteamApp);
   let count=0;
+  const appIds = new Set();
   console.log('Updating steamApp table');
   for (let app of allApps.data.applist.apps){
-    if (app.name=='') continue;
-    insert.run(app.appid,app.name);
+    const name = app.name.trim();
+    
+    if (appIds.has(app.appid)) continue;
+    if (name=='') continue;
+    try{
+      let info = insert.run(app.appid,name);
+      if (!info.changes){
+        console.log(app);
+      }
+      appIds.add(app.appid)
+    }catch(ex){
+      console.log(ex);
+      console.log(app);
+    }
     count++;
+    if (count%1000==0){
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    }
   }
   db.pragma('wal_checkpoint(TRUNCATE)');
   console.log(`Added/updated ${count} entries.`);
@@ -283,8 +325,8 @@ function getSteamAppIdByName(name){
   const row = stmt.get(name);
   // If a row is found, grab the id column
   if (row){
-    return row.id;
-  }
+    return row.steam_app_id;
+  }else{}
   // Otherwise, return a default value
   return -1;
 
