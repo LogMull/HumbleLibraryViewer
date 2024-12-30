@@ -120,13 +120,18 @@ function processStoreItem(item){
   const insert = db.prepare(queries.insertGame);
   let steamappId='-1';
   // Ensure the details exist before trying to access it  Mostly care about the steam app id
+
   if (item.tpkd_dict  && item.tpkd_dict.all_tpks){
     const details = item.tpkd_dict.all_tpks[0];
     // Only check steam keys that are not a gift to someone else.
-    if ( details.key_type!='steam' || (details.is_gift && !item.is_giftee )){
+    if ( details?.key_type!='steam' || (details?.is_gift && !item.is_giftee )){
       return;
     }
-    steamappId = details.steam_app_id;
+    if (details.steamAppId){
+      steamappId = details.steam_app_id;
+    }else{
+      steamappId = getSteamAppIdByName(item.product.human_name);
+    }
   }
   console.log(steamappId,item.product.human_name,null,item.claimed?1:0)
   insert.run(steamappId,item.product.human_name,null,item.claimed?1:0);
