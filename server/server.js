@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import cors from 'cors';
-import express from "express";
+import express, { response } from "express";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import fetch from 'node-fetch';
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -10,6 +11,7 @@ app.use(express.json());
 import {db,queries} from './databaseManager.js'
 import { json } from 'node:stream/consumers';
 import e from 'cors';
+import { exit } from 'node:process';
 
 //const db = require('./databaseManager')
 
@@ -28,7 +30,8 @@ app.get("/api/getGridData", (req,res) => {
 
 app.get("/api/loadSampleData", (req,res) => {
   fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
-    await getAllSteamApps();
+    // Get all steam games directly from steam. This will load the steamApp table.
+    await getAllSteamApps(); 
     // TODO - Enable this, maybe add a check somehow
     if (err) {
       console.error(err);
@@ -51,8 +54,8 @@ app.get("/api/loadSampleData", (req,res) => {
         processBundleItem(item);
       }
       else if (item.product.choice_url){
-        continue;
-        // For each choice entry, we need to 
+      
+        // For each choice entry, we need to  
         //  1) Determine a list of all games included in the bundle
         //  2) Determine which games from that list have been included already
 
@@ -64,7 +67,7 @@ app.get("/api/loadSampleData", (req,res) => {
         // console.log('Row ');
         console.log(row);
         // If the row does not exist, grab data from the bundle page.
-        if (row==undefined){
+        if (row==undefined){ 
           choiceRequests.push(processChoiceItem(item,gridData));
         }else{
           // The above is async, so it will handle all of setting up the game data.
@@ -72,9 +75,6 @@ app.get("/api/loadSampleData", (req,res) => {
           const choice_id  = row.id;
           checkChoiceGamesClaimed(item,choice_id);
         }
-    
-        
-        
         //console.log("Finished "+item.product.choice_url)
         //skip=true
       }else if (item.product.category=='subscriptioncontent' && item.product.machine_name.includes('monthly')){
@@ -239,26 +239,26 @@ function createChoiceGames(gamesObj,choice_id) {
   for (let gameEntry in gamesObj){
     // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
     const gameBase = gamesObj[gameEntry];
-    let steamAppId ='-1';
+    let steamAppId =-1;
     let name='';
     if (gameBase.tpkds){
       const gameData = gameBase.tpkds[0];
       steamAppId = gameData.steam_app_id;
       name = gameData.human_name;
       // If the steam app id isn't around, try to look it up
-      if (!steamAppId && gameData.key_type=='steam'){
-        getSteamAppIdByName(name);
-        if (steamAppId == -1 ){
-          steamAppId='';
-        }
+      if (!steamAppId && gameData.key_type=='steam'){ 
+        steamAppId = getSteamAppIdByName(name);
       }
-      if(!steamAppId || gameData.key_type != 'steam'){
+      if(gameData.key_type != 'steam'){
         //console.log(gameData)
         continue;
       }
+      if (!steamAppId){ 
+        steamAppId = -1;
+      }
     }
     // Insert the game definition. Name, steamappid and choice bundle id are included here.
-    insert.run(steamAppId,name,choice_id,false);
+    insert.run(steamAppId,name,choice_id,0);
   }
 }
 /// Get a webpage and parse it to find a script tag. For example
@@ -293,36 +293,59 @@ async function fetchScriptContent(url, scriptId) {
 // See this for info - https://partner.steamgames.com/doc/webapi/ISteamApps#GetAppList
 async function getAllSteamApps(){
   console.log('Pulling Steam AppId/Names');
-  const allApps = await axios.get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
+
+  // It seems that when we poll this url to get data, we often get dups, but still get the same number of rows.  This means we lose data as well.
+  // Instead of getting just the shell first and trying to populate data as-needed for owned games, we'll try getting everything up front.
+  // this means more storage space
+  // const { statusCode, data, headers } = await curly.get('https://api.steampowered.com/ISteamApps/GetAppList/v2');
+  const response = await fetch(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`)
+  const allApps = await response.json();
+  // }); 
+  // const allAppsStr = await response.te
+  //const allApps = JSON.parse(allAppsStr)
+  //const allApps = await axios.get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
   //const allApps = JSON.parse(allAppsStr);
   //console.log(allApps)
   const insert = db.prepare(queries.insertSteamApp);
   let count=0;
   const appIds = new Set();
+  const seenAppIds = new Set();
+  
   console.log('Updating steamApp table');
-  for (let app of allApps.data.applist.apps){
+  // console.log(`Total apps received: ${allApps.data.applist.apps.length}`);
+  console.log(`Total apps received: ${allApps.applist.apps.length}`);
+  let skippedIdCnt=0;
+  let skippedNameCnt=0;
+  // for (let app of allApps.data.applist.apps){
+  for (let app of allApps.applist.apps){
     const name = app.name.trim();
     
-    if (appIds.has(app.appid)) continue;
-    if (name=='') continue;
+    if (appIds.has(app.appid)){
+      skippedIdCnt++;
+      continue
+    } 
+    if (name==''){ skippedNameCnt++; continue;}
     try{
-      let info = insert.run(app.appid,name);
-      if (!info.changes){
-        console.log(app);
-      }
       appIds.add(app.appid)
+      insert.run(app.appid,app.name)
     }catch(ex){
       console.log(ex);
       console.log(app);
     }
     count++;
     if (count%1000==0){
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      //db.pragma('wal_checkpoint(TRUNCATE)'); 
     }
   }
-  db.pragma('wal_checkpoint(TRUNCATE)');
+  
+  db.pragma('wal_checkpoint(TRUNCATE)'); 
+  console.log(`Unique AppIDs processed: ${appIds.size}`);
+  console.log(`Skipped ${skippedIdCnt} ids and ${skippedNameCnt} names (${skippedIdCnt+skippedNameCnt}) Total processed = ${skippedIdCnt+skippedNameCnt + appIds.size}`)
   console.log(`Added/updated ${count} entries.`);
-}
+  // console.log(appIds);
+  //fs.writeFileSync('written.json',written);
+  
+} 
 
 function getSteamAppIdByName(name){
   let stmt = db.prepare(queries.getSteamAppByName);

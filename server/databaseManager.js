@@ -48,7 +48,11 @@ const scripts =[`CREATE TABLE IF NOT EXISTS game (
 `CREATE TABLE IF NOT EXISTS steamApp (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   steam_app_id INTEGER,
-  name text  
+  name text,
+  tags text,
+  posReviews integer,
+  negReviews integer
+
 )`,
 `CREATE TABLE IF NOT EXISTS system (
   sys_key text
@@ -84,6 +88,7 @@ const queries ={
   "getBundleByUid":`SELECT * from bundle where uid = ?`,
   "setGameClaimed":`UPDATE game SET claimed=1 where bundle_id = ? and steamAppId = ?`,
   "insertSteamApp":`INSERT or IGNORE into steamApp (steam_app_id,name) values (?,?)`,
+  "insertSteamSpyData":`INSERT or IGNORE into steamApp (steam_app_id,name,tags,posReviews,negReviews) values (?,?,?,?,?)`,
   "getSteamAppByName": `SELECT steam_app_id from steamApp where name = ? COLLATE NOCASE` // ensure case-insensitive
 
 }
