@@ -30,8 +30,10 @@ app.get("/api/getGridData", (req,res) => {
 
 app.get("/api/loadSampleData", (req,res) => {
   fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
+    db.prepare('Drop TABLE if Exists games').run();
+    db.prepare('Drop TABLE if Exists bundles').run();
     // Get all steam games directly from steam. This will load the steamApp table.
-    await getAllSteamApps(); 
+    //await getAllSteamApps(); 
     // TODO - Enable this, maybe add a check somehow
     if (err) {
       console.error(err);
@@ -87,6 +89,7 @@ app.get("/api/loadSampleData", (req,res) => {
     }
     // wait for any choice requests which may have gone async.
     await Promise.all(choiceRequests);
+    console.log("Done with all items!")
     return res.send(gridData)
 
   });
@@ -104,10 +107,16 @@ app.get("/sample", function(req, res) {
 function checkChoiceGamesClaimed(item,choice_id){
   for (let gameDef of item.tpkd_dict.all_tpks){
     if (gameDef.redeemed_key_val){ 
+      let appId = gameDef.steam_app_id
+      if (!appId){
+        appId = getSteamAppIdByName(gameDef.human_name);
+      }
+      // console.log(`Setting ${choice_id} ${appId} to claimed`)
       // Update the key to be claimed.
       const stmt= db.prepare(queries.setGameClaimed);
 
-      const info = stmt.run(choice_id,gameDef.steam_app_id);
+      const info = stmt.run(choice_id,appId);
+      
     }
   }
   db.pragma('wal_checkpoint(TRUNCATE)');
