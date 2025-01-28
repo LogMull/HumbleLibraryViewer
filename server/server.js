@@ -12,7 +12,7 @@ import {db,queries} from './databaseManager.js'
 import { json } from 'node:stream/consumers';
 import e from 'cors';
 import { exit } from 'node:process';
-
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 //const db = require('./databaseManager')
 
 app.get("/", function(req, res) {
@@ -26,8 +26,29 @@ app.get("/api/getGridData", (req,res) => {
     // Select * from game, left outer join bundle on game.bundle_id = bundle.id where game.steamAppId is not null and !=-1
     // This will make it easy to get everything without concern of where it game from, but also include everything we care about
 });
+// This endpoint will handle populating all tags, reviews, etc from SteamSpy for every game the user has access to.
+app.get("/api/refreshAllGameData", async (req,res) => {
+  const rows = db.prepare('SELECT distinct steamAppId FROM game where steamAppId != -1').all(); // TODO move to queries
+  const update = db.prepare('UPDATE steamApp SET tags = ?, posReviews = ?, negReviews = ? WHERE steam_app_id = ?'); 
+  let cnt = 0;
+  console.log(`Retrieving tags and reviews for ${rows.length} games.`);
+  for (let row of rows){
+    cnt++;
+    let url = `https://steamspy.com/api.php?request=appdetails&appid=${row.steamAppId}`
+    const response = await fetch(url);
+    const data = await response.json();
+    const tags = Object.keys(data.tags)
+    const posRev = data.positive;
+    const negRev = data.negative;
+    update.run(JSON.stringify(tags),posRev,negRev, row.steamAppId);
+    await delay(300);
+    if (cnt%50==0){
+      console.log(`Updated ${cnt}/${rows.length} (${cnt/rows.length}%)`)
+    }
 
+  }
 
+});
 app.get("/api/loadSampleData", (req,res) => {
   fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
     db.prepare('Drop TABLE if Exists games').run();
