@@ -1,12 +1,17 @@
-<template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <GridSample/>
+<template >
+  <div class=" w-100 vh-100" >
+    <div  class="h1">Humble Bundle Game Vuer </div>
+    <GridSample />
+    <div>test</div>
+  </div>
+  
 
 </template>
 
 <script>
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+
 
 // import HelloAxios from './components/HelloAxios.vue';
 // import HelloWorld from './components/HelloWorld.vue'
@@ -39,6 +44,7 @@ export default {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+  min-height: 100vh;
+  /* margin-top: 60px; */
 }
 </style>

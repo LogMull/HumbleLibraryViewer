@@ -23,8 +23,36 @@ app.get("/api/message", function(req, res) {
 });
 // Dedicated endpoint that will handle getting all stored data.
 app.get("/api/getGridData", (req,res) => {
+  const returnResult={
+
+  }
     // Select * from game, left outer join bundle on game.bundle_id = bundle.id where game.steamAppId is not null and !=-1
     // This will make it easy to get everything without concern of where it game from, but also include everything we care about
+    const rows = db.prepare(`select game.name as 'game', game.claimed as 'claimed', game.steamAppId as 'appId', bundle.name as 'bundle', steamApp.tags as 'tags', steamApp.posReviews as 'positive', steamApp.negReviews as 'negative'
+      FROM game 
+	    left outer join bundle on game.bundle_id = bundle.id 
+	    left outer join steamApp on game.steamAppId = steamApp.steam_app_id`).all()
+    const gridData = [];
+    const allTag = new Set();
+    const uniqueList = new Set();
+    for (let row of rows){
+      if (uniqueList.has(`${row.game}${row.bundle}`)) continue;
+      uniqueList.add(`${row.game}${row.bundle}`);
+      let posPercent = row.positive/(row.positive+row.negative)*100
+      row.positivePercent = Math.round(posPercent);
+      gridData.push(row);
+      console.log(row)
+      if (row.tags){
+        let tags = JSON.parse(row.tags)
+        for (let tag of tags){
+          allTag.add(tag);
+        }
+        row.tags = tags
+      }
+    }
+    returnResult.gridData = gridData;
+    returnResult.allTags = [...allTag].sort();
+    res.send(returnResult);
 });
 // This endpoint will handle populating all tags, reviews, etc from SteamSpy for every game the user has access to.
 app.get("/api/refreshAllGameData", async (req,res) => {
@@ -49,6 +77,7 @@ app.get("/api/refreshAllGameData", async (req,res) => {
   }
 
 });
+
 app.get("/api/loadSampleData", (req,res) => {
   fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
     db.prepare('Drop TABLE if Exists games').run();
