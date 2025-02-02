@@ -9,11 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 import {db,queries} from './databaseManager.js'
-import { json } from 'node:stream/consumers';
-import e from 'cors';
-import { exit } from 'node:process';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-//const db = require('./databaseManager')
 
 app.get("/", function(req, res) {
     return res.send("Hello World"); 

@@ -16,11 +16,16 @@
   "repository": "https://github.com/LogMull/HumbleLibraryViewer",
   "license": "MIT",
   "scripts": {
-    "start": "node server/server.js",
+    
     "dev": "nodemon --ignore '*.json' server/server.js ",
-    "dev-serve": "nodemon server/server.js"
+    "build": "cd client && npm install && npm run build",
+    "start": "npm run build && electron electron.js",
+    "electron": "electron electron.js",
+    "package": "electron-builder"
   },
   "devDependencies": {
+    "electron": "^34.0.2",
+    "electron-builder": "^25.1.8",
     "nodemon": "^3.1.9"
   }
 }
