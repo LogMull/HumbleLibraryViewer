@@ -133,3 +133,4 @@ sampleData.json
 *.lock
 
 devStuff
+dist_electron

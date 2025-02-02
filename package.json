@@ -2,7 +2,7 @@
   "dependencies": {
     "ag-grid-community": "^33.0.2",
     "axios": "^1.7.9",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^11.8.1",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
@@ -12,14 +12,18 @@
   },
   "name": "HumbleLibraryViewer",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "electron.js",
   "repository": "https://github.com/LogMull/HumbleLibraryViewer",
   "license": "MIT",
   "scripts": {
-    
-    "dev": "nodemon --ignore '*.json' server/server.js ",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev2": "concurrently \"nodemon --ignore 'client/dist/*' server/server.js\" \"node node_modules/electron/cli.js electron.js\"",
+    "dev3": "concurrently \"nodemon --ignore 'client/dist/*' server/server.js\" \"node node_modules/electron/cli.js .\"",
+
+    "dev:server": "nodemon --ignore '*.json' server/server.js",
+    "dev:client": "cd client && npm run dev",
     "build": "cd client && npm install && npm run build",
-    "start": "npm run build && electron electron.js",
+    "start": "node node_modules/electron/cli.js electron.js",
     "electron": "electron electron.js",
     "package": "electron-builder"
   },
@@ -29,16 +33,19 @@
     "nodemon": "^3.1.9"
   },
   "build": {
-  "appId": "com.yourapp.id",
-  "productName": "YourApp",
-  "directories": {
-    "output": "dist-electron"
-  },
-  "files": [
-    "Client/dist/**/*",
-    "Server/**/*",
-    "electron.js",
-    "package.json"
-  ]
-}
+    "appId": "com.yourapp.id",
+    "productName": "HumbleBundleVuer",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "client/dist/**",
+      "server/**",
+      "electron.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  }
 }

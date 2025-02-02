@@ -1,6 +1,7 @@
 <template >
   <div class=" w-100 vh-100" >
     <div  class="h1">Humble Bundle Game Vuer </div>
+    <button  @click="buttonClick"></button>
     <GridSample />
     <div>test</div>
   </div>
@@ -33,6 +34,12 @@ export default {
     // HelloAxios,
     
     GridSample
+    
+  },
+  methods:{
+    buttonClick(){
+      console.log("Clicked!")
+    }
   }
 }
 </script>

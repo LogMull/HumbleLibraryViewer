@@ -13,7 +13,11 @@ app.on("ready", () => {
 //     detached: false, // Allows independent process control
 //     stdio: "inherit", 
 //   });
-serverProcess = spawn("node", ["server/server.js"], { stdio: "inherit" });
+const isDev = !app.isPackaged;
+const serverPath = isDev ? "server/server.js" : path.join(process.resourcesPath, "server/server.js");
+
+serverProcess = spawn("node", [serverPath], { stdio: "inherit" });
+
   serverProcess.unref(); // Allows Electron to exit cleanly
 
   mainWindow = new BrowserWindow({
