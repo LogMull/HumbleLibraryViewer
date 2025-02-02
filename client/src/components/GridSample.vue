@@ -16,9 +16,10 @@
     </ul>
   </div>
     <div v-if="rowData.length" style="height: 500px; width: 100%;">
-      <div class="w-50 mb-3"> 
-        <span class="label label-secondary">Filter by Tag</span>
-      <multiselect
+      <div class="d-flex justify-content-center mb-3">  
+      <div class="w-25">  
+        <div class="label label-secondary mb-3">Filter by Tag</div>
+        <multiselect
         id="tagging"
         v-model="filterSelection"
         tag-placeholder="Filter by Steam Tags" 
@@ -26,6 +27,28 @@
         label="name"
         @update:model-value="filterChange"
         track-by="code" :options="filterOptions" :multiple="true" :taggable="true" ></multiselect>
+      </div>
+      <div class="ms-5">  
+          <div class="label label-secondary mb-3">Filter Options</div>
+          <div class="form-check">
+            <input class="form-check-input" v-model="matchAll" @change="filterChange" type="checkbox" value="" id="flexCheckDefault">
+            <label class="form-check-label" for="flexCheckDefault" title="If checked, game must have all selected tags. If unchecked, game can have any selected tag.">
+               Match all tags
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" v-model="excludeClaimed" @change="filterChange" type="checkbox" value="" id="excludeClaimed">
+            <label class="form-check-label" for="excludeClaimed">
+              Exclude Claimed
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" v-model="excludeunClaimed" @change="filterChange" type="checkbox" value="" id="excludeunClaimed">
+            <label class="form-check-label" for="flexCheckDefault" >
+               Exclude Unclaimed
+            </label>
+        </div>
+        </div>
       </div>
       <ag-grid-vue
         class="ag-grid ag-theme-alpine"
@@ -86,6 +109,9 @@ ModuleRegistry.registerModules([
       return {
         filterSelection:[],
         filterOptions:[],
+        matchAll:false,
+        excludeunClaimed:false,
+        excludeClaimed:false,
         rowData: [
           { name: 'temp', age: 0, status: '0' },
          
@@ -138,15 +164,38 @@ ModuleRegistry.registerModules([
       },
       isExternalFilterPresent(){
         console.log(`Is filter present ${this.filterSelection.length!=0}`);
-        return this.filterSelection.length!=0;
+        return this.filterSelection.length!=0 || this.excludeClaimed || this.excludeunClaimed;
       },
       doesExternalFilterPass(node){
-        console.log(node)
-        // Simple filtering for now. If the node has any of the tags in the filtered list, allow it.
-        for (let selFilter of this.filterSelection){
-          if (node.data.tags?.includes(selFilter.code)) return true;
+        console.log(node.data)
+        // Match on claimed/unclaimed first
+        if (node.data.claimed===1 && this.excludeClaimed) return false;
+        if (node.data.claimed==0 && this.excludeunClaimed) return false;
+        if (this.filterSelection.length > 0){
+          let allMatchedSoFar=true;
+          // Simple filtering for now. If the node has any of the tags in the filtered list, allow it.
+          for (let selFilter of this.filterSelection){
+            // Check if this filter is contained in the nodes
+              let filterMatched=node.data.tags?.includes(selFilter.code);
+              allMatchedSoFar &= filterMatched;
+              if (this.matchAll){
+                // If one did not match, stop looking new
+                if (!allMatchedSoFar){
+                  return false;
+                }
+              }else if (filterMatched){
+                return true;
+              }
+          }
+          // Match all would have quit early if a tag was missed
+          if (this.matchAll){
+            return true;
+          }else{
+            // Match any would have quit early if a tag was found
+            return false;
+          }
         }
-        return false;
+        return true
         
         
       },

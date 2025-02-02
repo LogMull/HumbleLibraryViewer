@@ -43,3 +43,10 @@ https://medium.com/@hminnovance/create-a-modern-web-app-with-node-express-and-vu
     Endpoint to build grid data
 
     Tag retrieval 
+
+    All games addeded need a uniqueness check, OR when data is loaded, it is first purged.
+
+Dev Notes
+    Start backend - `yarn dev`
+    start UI - from client dir, `yarn serve`
+    Build data sources 
