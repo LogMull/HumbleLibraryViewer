@@ -27,5 +27,18 @@
     "electron": "^34.0.2",
     "electron-builder": "^25.1.8",
     "nodemon": "^3.1.9"
-  }
+  },
+  "build": {
+  "appId": "com.yourapp.id",
+  "productName": "YourApp",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "Client/dist/**/*",
+    "Server/**/*",
+    "electron.js",
+    "package.json"
+  ]
+}
 }

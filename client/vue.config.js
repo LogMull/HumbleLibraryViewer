@@ -1,5 +1,6 @@
 const path = require('path');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+import vue from '@vitejs/plugin-vue';
 
 //module.exports = {
 //   configureWebpack: {
@@ -10,7 +11,8 @@ module.exports = {
   outputDir: path.resolve(__dirname, 'dist'),
   publicPath: './',
   configureWebpack: {
-    plugins: [new BundleAnalyzerPlugin()],
+    plugins: [new BundleAnalyzerPlugin(), 
+      vue()],
     optimization: {
       splitChunks: {
         chunks: 'all',
