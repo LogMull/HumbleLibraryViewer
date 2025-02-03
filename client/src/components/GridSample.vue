@@ -204,7 +204,7 @@ ModuleRegistry.registerModules([
         this.gridApi = params.api;
         this.gridColumnApi = params.columnApi;
 
-        const response = await fetch('http://192.168.1.24:3000/api/getGridData');
+        const response = await fetch('http://localhost:3000/api/getGridData');
         const data = await response.json();
         
         //console.log(response);

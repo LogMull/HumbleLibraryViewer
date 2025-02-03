@@ -6,6 +6,9 @@ import chrome from 'selenium-webdriver/chrome.js';
 //const chrome = require('selenium-webdriver/chrome')
 //const firefox = require('selenium-webdriver/firefox')
 
+export default getHBData;
+async function getHBData(){
+
 
 //   let driver = new Builder()
 //   .forBrowser(Browser.CHROME)
@@ -62,6 +65,7 @@ let driver = await new Builder()
     await driver.quit()
 
   }
+}
 
   async function fetchGamesInSelenium(driver) {
     return await driver.executeAsyncScript(`

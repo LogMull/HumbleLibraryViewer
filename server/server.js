@@ -4,6 +4,7 @@ import express, { response } from "express";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
+import getHBData from './selenium.js';
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -13,6 +14,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 app.get("/", function(req, res) {
     return res.send("Hello World"); 
+});
+
+app.get("/selenium",function(req,res){
+  console.log("entering endpoint")
+  getHBData();
+  return res.send(":)");
 });
 app.get("/api/message", function(req, res) {
     return res.send("Hello yellow");

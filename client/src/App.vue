@@ -37,8 +37,10 @@ export default {
     
   },
   methods:{
-    buttonClick(){
+    async buttonClick(){
       console.log("Clicked!")
+      const data = await fetch("http://localhost:3000/selenium/");
+      console.log(data);
     }
   }
 }
