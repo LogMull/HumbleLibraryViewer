@@ -9,6 +9,27 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+import WebSocket from 'ws';
+
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on('connection', function connection(ws) {
+
+
+  ws.on('message', function incoming(message) {
+    console.log("Got message... " + message)
+    if (message == 'selenium'){
+      let data = getHBData(ws);
+      console.log(data.length);
+      ws.send(JSON.stringify({'type':'selenium', 'message':'Total Items: '+data.length}))
+    }
+    // Handle incoming message
+  });
+
+  ws.on('close', function() {
+    // Handle connection close
+  });
+});
 import {db,queries} from './databaseManager.js'
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 

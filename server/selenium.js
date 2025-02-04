@@ -7,7 +7,11 @@ import chrome from 'selenium-webdriver/chrome.js';
 //const firefox = require('selenium-webdriver/firefox')
 
 export default getHBData;
-async function getHBData(){
+
+function sendSocketMessage(ws,message){
+  ws.send(JSON.stringify({'type':'selenium', 'message':message}))
+}
+async function getHBData(ws){
 
 
 //   let driver = new Builder()
@@ -21,32 +25,36 @@ let driver = await new Builder()
   async function sleep(ms) {
     return await new Promise(resolve => setTimeout(resolve, ms));
   }
+  let result = [];
   try {
     console.log("Opening Humble bundle");
+
+    sendSocketMessage(ws,'Opening HumbleBundle');
     await driver.get('https://www.humblebundle.com/home/keys');
     console.log("Waiting for login");
+    sendSocketMessage(ws,'Please log in to Humble Bundle');
     await driver.wait(until.elementLocated(By.className('js-navbar-logout')), 0); // No timeout, waits indefinitely
     console.log("Logged in!");
     // Access the Chrome DevTools Protocol
     let devTools = await driver.createCDPConnection('page');
-   // Disable JavaScript on the page
+    // Disable JavaScript on the page
     // sleep(5000)
     // console.log('Freezing.');
     //await driver.sendDevToolsCommand('Page.setWebLifecycleState', { state: 'frozen' });
+    sendSocketMessage(ws,'Successfully logged in! Disabling Javascript');
     sleep(5000)
     console.log('Disabling.');
     await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: true });
-    
+    sendSocketMessage(ws,'Javascript disabled, reloading page.');
     sleep(5000)
-
-    console.log('JavaScript has been disabled on the target page.');
-    sleep(5000);
+    
     // Reload the page with JavaScript disabled
     console.log('Refreshing page');
     await driver.navigate().refresh();
     sleep(5000);        
     // Fetch game data
-    const result = await fetchGamesInSelenium(driver);
+    sendSocketMessage(ws,'Fetching your game data, please wait. This may take a while if you have many purchases.');
+    result = await fetchGamesInSelenium(driver);
     // console.log('Reading helper script');
     // const script = await readFile('seleniumDownloadRawData.js', 'utf-8');
     // // Write output to a file for debugging
@@ -55,16 +63,17 @@ let driver = await new Builder()
     // const result = await driver.executeScript(script);            
     // console.log("Script executed successfully! , writing results")
     
-    await writeFile('output.json', JSON.stringify(result, null, 2));
+    //await writeFile('output.json', JSON.stringify(result, null, 2));
     console.log("D O N E")
 
     //await driver.findElement(By.name('q')).sendKeys('webdriver', Key.RETURN)
     //await driver.wait(until.titleIs('webdriver - Google Search'), 1000)
   } finally {
-    await sleep(12000)
+   
     await driver.quit()
 
   }
+  return result;
 }
 
   async function fetchGamesInSelenium(driver) {
