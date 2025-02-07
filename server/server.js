@@ -1,6 +1,5 @@
-import fs from 'node:fs';
 import cors from 'cors';
-import express, { response } from "express";
+import express from "express";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
@@ -11,8 +10,16 @@ app.use(express.json());
 
 import WebSocket from 'ws';
 
-const wss = new WebSocket.Server({ port: 8080 });
+/*
+  TODOs for this file
+  Remove express endpoints, use only websockets instead.
+  Split into more meaningful modules, this is too large and varied
+    Maybe do one for bundle/game parsing and one for metadata (steamspy) retrieval?
+ 
+ */
 
+const wss = new WebSocket.Server({ port: 8080 });
+// TODO move all express apis to websocket connections
 wss.on('connection', function connection(ws) {
 
 
@@ -35,18 +42,6 @@ wss.on('connection', function connection(ws) {
 import {db,queries} from './databaseManager.js'
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-app.get("/", function(req, res) {
-    return res.send("Hello World"); 
-});
-
-app.get("/selenium",function(req,res){
-  console.log("entering endpoint")
-  getHBData();
-  return res.send(":)");
-});
-app.get("/api/message", function(req, res) {
-    return res.send("Hello yellow");
-});
 // Dedicated endpoint that will handle getting all stored data.
 app.get("/api/getGridData", (req,res) => {
   const returnResult={
@@ -152,8 +147,7 @@ async function loadHBData(data,ws){
         const choice_id  = row.id;
         checkChoiceGamesClaimed(item,choice_id);
       }
-      //console.log("Finished "+item.product.choice_url)
-      //skip=true
+
     }else if (item.product.category=='subscriptioncontent' && item.product.machine_name.includes('monthly')){
       // Legacy monthly bundles seem to act the same as regular bundles, pass through the same handler.
       processBundleItem(item);
@@ -167,33 +161,6 @@ async function loadHBData(data,ws){
   console.log("Done with all items!")
 
 }
-app.get("/api/loadSampleData", (req,res) => {
-  fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
-    db.prepare('Drop TABLE if Exists games').run();
-    db.prepare('Drop TABLE if Exists bundles').run();
-    // Get all steam games directly from steam. This will load the steamApp table.
-    //await getAllSteamApps(); 
-    // TODO - Enable this, maybe add a check somehow
-    if (err) {
-      console.error(err);
-      return;
-    }
-    // Parse it to a json for ease of use
-    const json = JSON.parse(data);
-    // Now build a list of things valid to show in the grid
-    
-    loadHBData(json)
-    return res.send(gridData)
-
-  });
-});
-// Temp endpoint that half heartedly sets up DB and sends a result to the UI for the grid.
-// TODO this needs split to upload/setup data and retrieve it.
-app.get("/sample", function(req, res) {
-
-  
-});
-
 // This function will look over the games in item.tpkd_dict.all_tpks and update the corresponding game, setting claimed=1
 // Presence of the redeemed_key_val should be enough.
 // If something does not represent a game on a steam (other platform, or a non-game) it can be a little screwy
@@ -204,12 +171,10 @@ function checkChoiceGamesClaimed(item,choice_id){
       if (!appId){
         appId = getSteamAppIdByName(gameDef.human_name);
       }
-      // console.log(`Setting ${choice_id} ${appId} to claimed`)
       // Update the key to be claimed.
       const stmt= db.prepare(queries.setGameClaimed);
 
       const info = stmt.run(choice_id,appId);
-      
     }
   }
   db.pragma('wal_checkpoint(TRUNCATE)');
@@ -235,7 +200,6 @@ function processStoreItem(item){
       steamappId = getSteamAppIdByName(item.product.human_name);
     }
   }
-  console.log(steamappId,item.product.human_name,null,item.claimed?1:0)
   insert.run(steamappId,item.product.human_name,null,item.claimed?1:0);
 }
 // Handler for items within bundles
@@ -259,14 +223,13 @@ function processBundleItem(item){
   db.pragma('wal_checkpoint(TRUNCATE)'); 
   }
   
-  
   const insert = db.prepare(queries.insertGame);
   for (const bundleItem of bundleItems){
     // Only care about steam tbh
     if (bundleItem.key_type != 'steam'){
       continue;
     }
-    let steamAppId = bundleItem.steam_app_id
+    let steamAppId = bundleItem.steam_app_id;
     // If the app is not around, look it up by name
     if (steamAppId == null){
       steamAppId = getSteamAppIdByName(bundleItem.human_name);
@@ -274,8 +237,6 @@ function processBundleItem(item){
     // If we still cannot find it, that is fine, it just means we can't get details about it.
     if (steamAppId==-1){
       console.log (steamAppId,bundleItem.human_name,bundleId,bundleItem.redeemed_key_val?1:0);
-      // console.log(info)
-      // console.log(bundleRow)
 
     }
     try{
@@ -301,7 +262,7 @@ app.listen(3000, function(){
 async function processChoiceItem(item){
   
   // Get the script content from the page.
-  const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
+  const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url)
   console.log('Checking '+item.product.choice_url)
   // Parse it to a json.
   const choiceJson = JSON.parse(scriptbody);
@@ -310,7 +271,7 @@ async function processChoiceItem(item){
   const info = stmt.run(item.product.human_name,item.product.choice_url);
   // Key to the insert is stored here
   const choice_id = info.lastInsertRowid
-  // Force a write
+  // Force a write -- bundles must be present before their games
   db.pragma('wal_checkpoint(TRUNCATE)');
   
   let rootObj = choiceJson.contentChoiceOptions.contentChoiceData;
@@ -339,10 +300,10 @@ function createChoiceGames(gamesObj,choice_id) {
   const insert = db.prepare(queries.insertGame);
   // Iterate over all games
   for (let gameEntry in gamesObj){
-    // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
     const gameBase = gamesObj[gameEntry];
     let steamAppId =-1;
     let name='';
+    // Some games are not actually games, but may be a combo, such as 'Fallout1 + 76', in this case they dont have tpkds, so get data differently
     if (gameBase.tpkds){
       const gameData = gameBase.tpkds[0];
       steamAppId = gameData.steam_app_id;
@@ -351,10 +312,11 @@ function createChoiceGames(gamesObj,choice_id) {
       if (!steamAppId && gameData.key_type=='steam'){ 
         steamAppId = getSteamAppIdByName(name);
       }
+      // Ignore non-steam games
       if(gameData.key_type != 'steam'){
-        //console.log(gameData)
         continue;
       }
+      // Ensure valid key is set.
       if (!steamAppId){ 
         steamAppId = -1;
       }
@@ -366,9 +328,10 @@ function createChoiceGames(gamesObj,choice_id) {
 /// Get a webpage and parse it to find a script tag. For example
 //  https://www.humblebundle.com/membership/october-2022 id =webpack-monthly-product-data
 
-async function fetchScriptContent(url, scriptId) {
+async function fetchScriptContent(url, scriptId='webpack-monthly-product-data') {
   try {
     // Fetch the HTML content
+    // TODO - use fetch here
     const response = await axios.get(url);
 
     // Load the HTML into cheerio
@@ -378,7 +341,6 @@ async function fetchScriptContent(url, scriptId) {
     const scriptContent = $(`script#${scriptId}`).html();
 
     if (scriptContent) {
-      //console.log(`Contents of <script id="${scriptId}">:\n`, scriptContent);
       return scriptContent;
     } else {
       console.log(`No <script id="${scriptId}"> found in the page.`);
@@ -399,64 +361,50 @@ function sendSocketMessage(ws, type, message){
 
 // https://api.steampowered.com/ISteamApps/GetAppList/v2/ will do this
 // See this for info - https://partner.steamgames.com/doc/webapi/ISteamApps#GetAppList
+// Oddly enough, we get a ton of duplicate data, roughly 15k from previous tests. This function will not add duplicates from the data set.
+// The query used tto insert data should ignore duplicate keys as well, so this is safe to run at any time.
 async function getAllSteamApps(ws){
   console.log('Pulling Steam AppId/Names');
 
-  // It seems that when we poll this url to get data, we often get dups, but still get the same number of rows.  This means we lose data as well.
-  // Instead of getting just the shell first and trying to populate data as-needed for owned games, we'll try getting everything up front.
-  // this means more storage space
-  // const { statusCode, data, headers } = await curly.get('https://api.steampowered.com/ISteamApps/GetAppList/v2');
-  sendSocketMessage(ws,'selenium','Getting app data from Steam.')
   const response = await fetch(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`)
   const allApps = await response.json();
-  // }); 
-  // const allAppsStr = await response.te
-  //const allApps = JSON.parse(allAppsStr)
-  //const allApps = await axios.get('https://api.steampowered.com/ISteamApps/GetAppList/v2/');
-  //const allApps = JSON.parse(allAppsStr);
-  //console.log(allApps)
+
   const insert = db.prepare(queries.insertSteamApp);
   let count=0;
-  const appIds = new Set();
-  const seenAppIds = new Set();
-  
-  console.log('Updating steamApp table');
-  // console.log(`Total apps received: ${allApps.data.applist.apps.length}`);
+  const appIds = new Set(); // Keeps track of the games already processed from this batch.
+
   console.log(`Total apps received: ${allApps.applist.apps.length}`);
   
   let skippedIdCnt=0;
   let skippedNameCnt=0;
-  // for (let app of allApps.data.applist.apps){
   for (let app of allApps.applist.apps){
     const name = app.name.trim();
-    
+    // Do not process duplicates
     if (appIds.has(app.appid)){
       skippedIdCnt++;
       continue
     } 
+    // Ignore blank names, we don't care about those.
     if (name==''){ skippedNameCnt++; continue;}
     try{
       appIds.add(app.appid)
+      // Query will prevent duplicate keys
       insert.run(app.appid,app.name)
     }catch(ex){
       console.log(ex);
       console.log(app);
     }
     count++;
-    if (count%1000==0){
-      //db.pragma('wal_checkpoint(TRUNCATE)'); 
-    }
   }
   
   db.pragma('wal_checkpoint(TRUNCATE)'); 
   console.log(`Unique AppIDs processed: ${appIds.size}`);
   console.log(`Skipped ${skippedIdCnt} ids and ${skippedNameCnt} names (${skippedIdCnt+skippedNameCnt}) Total processed = ${skippedIdCnt+skippedNameCnt + appIds.size}`)
   console.log(`Added/updated ${count} entries.`);
-  // console.log(appIds);
-  //fs.writeFileSync('written.json',written);
   
 } 
-
+// Some entries do not have valid steam app ids, but the name may match what is on steam.  In this case we can look up the app id to correctly
+// associate the game to its entry.
 function getSteamAppIdByName(name){
   let stmt = db.prepare(queries.getSteamAppByName);
 
@@ -464,7 +412,7 @@ function getSteamAppIdByName(name){
   // If a row is found, grab the id column
   if (row){
     return row.steam_app_id;
-  }else{}
+  }
   // Otherwise, return a default value
   return -1;
 

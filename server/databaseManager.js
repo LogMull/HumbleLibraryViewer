@@ -1,3 +1,11 @@
+/*
+  This module exists to handle everything database related.
+  It will:
+   Create the database if it does not exist
+   Instantiate a single databse connection
+   Define most/all of the queries so they are mainted in one place.
+
+*/
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -58,13 +66,7 @@ const scripts =[`CREATE TABLE IF NOT EXISTS game (
   sys_key text
   sys_value text
 )`
-//  `CREATE TABLE IF NOT EXISTS choice_games (
-//     id INTEGER PRIMARY KEY AUTOINCREMENT,
-//     choice_id INTEGER REFERENCES choice_bundle(id),
-//     game_id INTEGER REFERENCES game(id)    
-// ); `
 ];
-console.log("")
 scripts.forEach(script => {
   try {
       db.exec(script);

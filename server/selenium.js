@@ -1,27 +1,27 @@
-//const webdriver = require('selenium-webdriver')
-import {Builder, Browser, By, Key, until} from 'selenium-webdriver';
-import { writeFile,readFile } from 'fs/promises';
+/*
+  This file handles everything webdrive related
+  In short, it launches a webdriver instance (TODO, add options later for other browsers / electron built-in)
+  which then navigates to HumbleBundle and allows the user to log in. It will then gather bundle information
+  Collection is based on this
+  https://www.reddit.com/r/humblebundles/comments/11kx7i8/comment/jb9qupl/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+
+*/
+import {Builder, By,  until} from 'selenium-webdriver';
 import chrome from 'selenium-webdriver/chrome.js';
-//import chrome from selen
-//const chrome = require('selenium-webdriver/chrome')
-//const firefox = require('selenium-webdriver/firefox')
 
 export default getHBData;
 
+// Helper to consistently send messages over the socket
 function sendSocketMessage(ws,message){
   ws.send(JSON.stringify({'type':'selenium', 'message':message}))
 }
 async function getHBData(ws){
 
-
-//   let driver = new Builder()
-//   .forBrowser(Browser.CHROME)
-//   .usingServer('http://localhost:4444/wd/hub')
-//   .build()
 let driver = await new Builder()
         .forBrowser('chrome')  // Must be Chrome
         .setChromeOptions(new chrome.Options()) // Required for Chrome-specific commands
         .build();
+  // Simple wait function
   async function sleep(ms) {
     return await new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -35,39 +35,22 @@ let driver = await new Builder()
     sendSocketMessage(ws,'Please log in to Humble Bundle');
     await driver.wait(until.elementLocated(By.className('js-navbar-logout')), 0); // No timeout, waits indefinitely
     console.log("Logged in!");
-    // Access the Chrome DevTools Protocol
-    let devTools = await driver.createCDPConnection('page');
-    // Disable JavaScript on the page
-    // sleep(5000)
-    // console.log('Freezing.');
-    //await driver.sendDevToolsCommand('Page.setWebLifecycleState', { state: 'frozen' });
-    sendSocketMessage(ws,'Successfully logged in! Please wait while data is fetched This may take a while if you have many purchases.  The chrome window will reload and appear blank.');
-    sleep(5000)
+    sendSocketMessage(ws,'Please wait while data is fetched This may take a while if you have many purchases.  The browser window will reload and appear blank.');
+    sleep(3000)
     console.log('Disabling.');
     await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: true });
-    // sendSocketMessage(ws,'Javascript disabled, reloading page.');
-    sleep(5000)
+    sleep(3000)
     
     // Reload the page with JavaScript disabled
     console.log('Refreshing page');
     await driver.navigate().refresh();
-    sleep(5000);        
+    sleep(1000);        
     // Fetch game data
-    // sendSocketMessage(ws,'Fetching your game data, please wait. This may take a while if you have many purchases.');
     result = await fetchGamesInSelenium(driver);
-    // console.log('Reading helper script');
-    // const script = await readFile('seleniumDownloadRawData.js', 'utf-8');
-    // // Write output to a file for debugging
-    // // Execute the script in the browser context
-    // console.log('Runnig helper script');
-    // const result = await driver.executeScript(script);            
-    // console.log("Script executed successfully! , writing results")
     
     //await writeFile('output.json', JSON.stringify(result, null, 2));
-    console.log("D O N E")
+    console.log("Done reading from Humblebundle")
 
-    //await driver.findElement(By.name('q')).sendKeys('webdriver', Key.RETURN)
-    //await driver.wait(until.titleIs('webdriver - Google Search'), 1000)
   } finally {
    
     await driver.quit()
@@ -76,6 +59,7 @@ let driver = await new Builder()
   return result;
 }
 
+  // function to pull games from humble. Returns an array of purchase objects, main app will filter these.
   async function fetchGamesInSelenium(driver) {
     return await driver.executeAsyncScript(`
         const callback = arguments[0];
