@@ -16,12 +16,14 @@ const wss = new WebSocket.Server({ port: 8080 });
 wss.on('connection', function connection(ws) {
 
 
-  ws.on('message', function incoming(message) {
+  ws.on('message', async function incoming(message) {
     console.log("Got message... " + message)
     if (message == 'selenium'){
-      let data = getHBData(ws);
+      let data = await getHBData(ws);
       console.log(data.length);
       ws.send(JSON.stringify({'type':'selenium', 'message':'Total Items: '+data.length}))
+      loadHBData(data,ws)
+      sendSocketMessage(ws,'selenium','done')
     }
     // Handle incoming message
   });
@@ -102,6 +104,69 @@ app.get("/api/refreshAllGameData", async (req,res) => {
 
 });
 
+/// This will load the game data (either from sample file or result of selenium).
+// Game and bundle tables will be purged, steamApp table will be updated
+async function loadHBData(data,ws){
+  // Clear the tables.
+  try{
+    db.prepare('DELETE FROM games').run();
+    db.prepare('DELETE FROM bundles').run();
+  }
+  catch (ex){
+     // Ignore this error for now, appears just to be due to the table not being around the first time
+  }
+  // Refresh steam data
+  getAllSteamApps();
+
+  let skip=false;
+  const choiceRequests=[];
+  let count=0;
+  sendSocketMessage(ws,'selenium',`Parsing Humble Bundle data (${data.length} entries`);
+  for (let item of data){
+    count++;
+    if (skip) continue;
+    // Storefront are straight forward.
+    if (item.product.category=='storefront'){
+      processStoreItem(item);
+    }
+    else if (item.product.category=='bundle'){
+      processBundleItem(item);
+    }
+    else if (item.product.choice_url){
+    
+      // For each choice entry, we need to  
+      //  1) Determine a list of all games included in the bundle
+      //  2) Determine which games from that list have been included already
+
+      // To handle this, for each choice url, query the database and see if we have an entry for this choice.
+      // If so, move on
+      // Otherwise, we will grab the contents of the corresponding page, parse out the content containing game data and build our structures.
+      const stmt = db.prepare(queries.getBundleByChoiceUrl);
+      const row = stmt.get(item.product.choice_url);
+      // If the row does not exist, grab data from the bundle page.
+      if (row==undefined){ 
+        choiceRequests.push(processChoiceItem(item));
+      }else{
+        // The above is async, so it will handle all of setting up the game data.
+        // If we have the bundle data already, set the claimed status for what we can.
+        const choice_id  = row.id;
+        checkChoiceGamesClaimed(item,choice_id);
+      }
+      //console.log("Finished "+item.product.choice_url)
+      //skip=true
+    }else if (item.product.category=='subscriptioncontent' && item.product.machine_name.includes('monthly')){
+      // Legacy monthly bundles seem to act the same as regular bundles, pass through the same handler.
+      processBundleItem(item);
+    }else{
+      // if (item.product.category!='subscriptionplan')
+      //console.log(item.product)
+    }
+  }
+  // wait for any choice requests which may have gone async.
+  await Promise.all(choiceRequests);
+  console.log("Done with all items!")
+
+}
 app.get("/api/loadSampleData", (req,res) => {
   fs.readFile('/opt/HumbleLibraryViewer/sampleData.json', 'utf8',async (err, data) => {
     db.prepare('Drop TABLE if Exists games').run();
@@ -117,53 +182,7 @@ app.get("/api/loadSampleData", (req,res) => {
     const json = JSON.parse(data);
     // Now build a list of things valid to show in the grid
     
-    let skip=false;
-    const gridData=[];
-    const choiceRequests=[]
-    for (let item of json){
-      if (skip) continue;
-      // Storefront are straight forward.
-      if (item.product.category=='storefront'){
-        processStoreItem(item);
-      }
-      else if (item.product.category=='bundle'){
-        processBundleItem(item);
-      }
-      else if (item.product.choice_url){
-      
-        // For each choice entry, we need to  
-        //  1) Determine a list of all games included in the bundle
-        //  2) Determine which games from that list have been included already
-
-        // To handle this, for each choice url, query the database and see if we have an entry for this choice.
-        // If so, move on
-        // Otherwise, we will grab the contents of the corresponding page, parse out the content containing game data and build our structures.
-        const stmt = db.prepare(queries.getBundleByChoiceUrl);
-        const row = stmt.get(item.product.choice_url);
-        // console.log('Row ');
-        console.log(row);
-        // If the row does not exist, grab data from the bundle page.
-        if (row==undefined){ 
-          choiceRequests.push(processChoiceItem(item,gridData));
-        }else{
-          // The above is async, so it will handle all of setting up the game data.
-          // If we have the bundle data already, set the claimed status for what we can.
-          const choice_id  = row.id;
-          checkChoiceGamesClaimed(item,choice_id);
-        }
-        //console.log("Finished "+item.product.choice_url)
-        //skip=true
-      }else if (item.product.category=='subscriptioncontent' && item.product.machine_name.includes('monthly')){
-        // Legacy monthly bundles seem to act the same as regular bundles, pass through the same handler.
-        processBundleItem(item,gridData);
-      }else{
-        // if (item.product.category!='subscriptionplan')
-        //console.log(item.product)
-      }
-    }
-    // wait for any choice requests which may have gone async.
-    await Promise.all(choiceRequests);
-    console.log("Done with all items!")
+    loadHBData(json)
     return res.send(gridData)
 
   });
@@ -279,7 +298,7 @@ app.listen(3000, function(){
 // That script has a dump of the data that we can use to build out our structures
 // HOWEVER it appears that the form of that data has changed over time, which makes this messier.
 // This function will handle building the DB of games included in the bundle.
-async function processChoiceItem(item,gridData){
+async function processChoiceItem(item){
   
   // Get the script content from the page.
   const scriptbody = await fetchScriptContent('https://www.humblebundle.com/membership/'+item.product.choice_url,'webpack-monthly-product-data')
@@ -370,17 +389,24 @@ async function fetchScriptContent(url, scriptId) {
     return null;
   }
 }
+function sendSocketMessage(ws, type, message){
+
+  if (ws){
+    ws.send(JSON.stringify({type,message}));
+  }
+}
 // Some bundles games seem to have null steam app ids, so to remedy that, get a list of all apps on steam
 
 // https://api.steampowered.com/ISteamApps/GetAppList/v2/ will do this
 // See this for info - https://partner.steamgames.com/doc/webapi/ISteamApps#GetAppList
-async function getAllSteamApps(){
+async function getAllSteamApps(ws){
   console.log('Pulling Steam AppId/Names');
 
   // It seems that when we poll this url to get data, we often get dups, but still get the same number of rows.  This means we lose data as well.
   // Instead of getting just the shell first and trying to populate data as-needed for owned games, we'll try getting everything up front.
   // this means more storage space
   // const { statusCode, data, headers } = await curly.get('https://api.steampowered.com/ISteamApps/GetAppList/v2');
+  sendSocketMessage(ws,'selenium','Getting app data from Steam.')
   const response = await fetch(`https://api.steampowered.com/ISteamApps/GetAppList/v2/`)
   const allApps = await response.json();
   // }); 
@@ -397,6 +423,7 @@ async function getAllSteamApps(){
   console.log('Updating steamApp table');
   // console.log(`Total apps received: ${allApps.data.applist.apps.length}`);
   console.log(`Total apps received: ${allApps.applist.apps.length}`);
+  
   let skippedIdCnt=0;
   let skippedNameCnt=0;
   // for (let app of allApps.data.applist.apps){

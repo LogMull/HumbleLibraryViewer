@@ -41,11 +41,11 @@ let driver = await new Builder()
     // sleep(5000)
     // console.log('Freezing.');
     //await driver.sendDevToolsCommand('Page.setWebLifecycleState', { state: 'frozen' });
-    sendSocketMessage(ws,'Successfully logged in! Disabling Javascript');
+    sendSocketMessage(ws,'Successfully logged in! Please wait while data is fetched This may take a while if you have many purchases.  The chrome window will reload and appear blank.');
     sleep(5000)
     console.log('Disabling.');
     await driver.sendDevToolsCommand('Emulation.setScriptExecutionDisabled', { value: true });
-    sendSocketMessage(ws,'Javascript disabled, reloading page.');
+    // sendSocketMessage(ws,'Javascript disabled, reloading page.');
     sleep(5000)
     
     // Reload the page with JavaScript disabled
@@ -53,7 +53,7 @@ let driver = await new Builder()
     await driver.navigate().refresh();
     sleep(5000);        
     // Fetch game data
-    sendSocketMessage(ws,'Fetching your game data, please wait. This may take a while if you have many purchases.');
+    // sendSocketMessage(ws,'Fetching your game data, please wait. This may take a while if you have many purchases.');
     result = await fetchGamesInSelenium(driver);
     // console.log('Reading helper script');
     // const script = await readFile('seleniumDownloadRawData.js', 'utf-8');

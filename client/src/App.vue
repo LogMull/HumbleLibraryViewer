@@ -47,6 +47,10 @@ export default {
       console.log("Received ")
       const data = JSON.parse(event.data);
       if (data.type=='selenium') {
+        if (data.message == 'done'){
+          
+          return;
+        }
         this.toastStepCount++;
         this.toastMessage=data.message
         const toast = useToast();
