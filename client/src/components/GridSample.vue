@@ -1,5 +1,5 @@
 <template>
-  <div class="dropdown">
+  <!--<div class="dropdown">
     <button
       class="btn btn-secondary dropdown-toggle"
       type="button"
@@ -15,6 +15,7 @@
       <li><a class="dropdown-item" href="#">Something else here</a></li>
     </ul>
   </div>
+-->
     <div v-if="rowData.length" style="height: 500px; width: 100%;">
       <div class="d-flex justify-content-center mb-3">  
       <div class="w-25">  
@@ -61,6 +62,9 @@
         :doesExternalFilterPass="doesExternalFilterPass"
         :theme="gridTheme"
       />
+    </div>
+    <div v-else>
+      Please use the 'Get Game Data' button above to pull your data from Humble bundle.
     </div>
   </template>
   <style src="vue-multiselect/dist/vue-multiselect.min.css"></style>
@@ -112,10 +116,7 @@ ModuleRegistry.registerModules([
         matchAll:false,
         excludeunClaimed:false,
         excludeClaimed:false,
-        rowData: [
-          { name: 'temp', age: 0, status: '0' },
-         
-        ],
+        rowData: [],
         columnDefs: [
           { headerName:'Game', field: 'game', width:375, cellClass: 'leftAlign',
             cellRenderer: params => {
@@ -203,15 +204,16 @@ ModuleRegistry.registerModules([
         console.log('Grid is ready');
         this.gridApi = params.api;
         this.gridColumnApi = params.columnApi;
-
-        const response = await fetch('http://localhost:3000/api/getGridData');
-        const data = await response.json();
+        this.$emit('grid-ready',params);
+        return;
+        // const response = await fetch('http://localhost:3000/api/getGridData');
+        // const data = await response.json();
         
-        //console.log(response);
-        this.rowData=data.gridData;
+        // //console.log(response);
+        // this.rowData=data.gridData;
 
-        this.filterOptions = data.allTags.map((tag) => {return {'name':tag,'code':tag}});
-        this.gridApi.sizeColumnsToFit();
+        // this.filterOptions = data.allTags.map((tag) => {return {'name':tag,'code':tag}});
+        // this.gridApi.sizeColumnsToFit();
 
       },
     },

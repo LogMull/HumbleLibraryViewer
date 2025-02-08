@@ -31,22 +31,8 @@ wss.on('connection', function connection(ws) {
       ws.send(JSON.stringify({'type':'selenium', 'message':'Total Items: '+data.length}))
       loadHBData(data,ws)
       sendSocketMessage(ws,'selenium','done')
-    }
-    // Handle incoming message
-  });
-
-  ws.on('close', function() {
-    // Handle connection close
-  });
-});
-import {db,queries} from './databaseManager.js'
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-// Dedicated endpoint that will handle getting all stored data.
-app.get("/api/getGridData", (req,res) => {
-  const returnResult={
-
-  }
+    }else if (message=='getGridData'){
+      const returnResult={}
     // Select * from game, left outer join bundle on game.bundle_id = bundle.id where game.steamAppId is not null and !=-1
     // This will make it easy to get everything without concern of where it game from, but also include everything we care about
     const rows = db.prepare(`select game.name as 'game', game.claimed as 'claimed', game.steamAppId as 'appId', bundle.name as 'bundle', steamApp.tags as 'tags', steamApp.posReviews as 'positive', steamApp.negReviews as 'negative'
@@ -62,7 +48,7 @@ app.get("/api/getGridData", (req,res) => {
       let posPercent = row.positive/(row.positive+row.negative)*100
       row.positivePercent = Math.round(posPercent);
       gridData.push(row);
-      console.log(row)
+      //console.log(row)
       if (row.tags){
         let tags = JSON.parse(row.tags)
         for (let tag of tags){
@@ -73,8 +59,21 @@ app.get("/api/getGridData", (req,res) => {
     }
     returnResult.gridData = gridData;
     returnResult.allTags = [...allTag].sort();
-    res.send(returnResult);
+    ws.send(JSON.stringify({type:'getGridData',
+      'data':returnResult
+    }));
+    
+    }
+    // Handle incoming message
+  });
+
+  ws.on('close', function() {
+    // Handle connection close
+  });
 });
+import {db,queries} from './databaseManager.js'
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 // This endpoint will handle populating all tags, reviews, etc from SteamSpy for every game the user has access to.
 app.get("/api/refreshAllGameData", async (req,res) => {
   const rows = db.prepare('SELECT distinct steamAppId FROM game where steamAppId != -1').all(); // TODO move to queries

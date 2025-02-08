@@ -1,9 +1,8 @@
 <template >
   <div class=" w-100 vh-100" >
     <div  class="h1">Humble Bundle Game Vuer </div>
-    <button caption="selenium" @click="buttonClick">Selenium please</button>
-    <GridSample />
-    <div>test</div>
+    <button class="btn btn-primary" caption="Get Game Data" @click="loadGameData">Get Game Data</button>
+    <GridSample  @grid-ready="ongridReady" :rowData="gridRows"/>
   </div>
   
 
@@ -26,39 +25,43 @@ export default {
   data(){
     return {
       socket:null,
-      toastMessage:'',
-      toastName:'',
-      toastSubText:'',
-      toastStepCount:0
+      toastStepCount:0,
+      gridParams:null,
+      gridReady:false,
+      socketReady:false,
+      gridRows:[]
     }
   },
-  mounted(){
-    //this.$toast.open('You did it!');
+  async mounted(){
+    console.log('Mounting')
 
     this.socket = new WebSocket('ws://localhost:8080');
+    this.socket.onopen = () => {
+        console.log("WebSocket connected");
+        this.socketReady = true;
+        this.fetchData()
+        
+      };
 
-    this.socket.onopen = function(event) {
-      // Handle connection open
-    };
+    this.socket.onmessage = (event) => {
 
-    this.socket.onmessage = function(event) {
-      
-   
       console.log("Received ")
       const data = JSON.parse(event.data);
       if (data.type=='selenium') {
         if (data.message == 'done'){
-          
           return;
         }
-        this.toastStepCount++;
-        this.toastMessage=data.message
         const toast = useToast();
         toast.success(`Data Getter: ${data.message}`, {
         position: 'bottom-right',
         duration: 10000
       });
-        //toast.add({ severity: 'info', summary: 'Step '+this.toastStepCount, detail: data.message, life: 3000, group: 'br' });
+  
+      }else if (data.type=='getGridData'){
+        this.gridParams.api.setGridOption("rowData",data.data.gridData);
+        this.gridRows = [...data.data.gridData];
+        //this.gridRows = data.data.gridData
+        console.log(this.gridRows);
       }
       console.log(event);
       // Handle received message
@@ -68,16 +71,35 @@ export default {
   // Handle connection close
       console.log("socket closed!")
     };
-
+    
+    
   },
   methods:{
-    async buttonClick(){
-      console.log("Clicked!")
-      this.toastName='Data Getter';
+    async loadGameData(){
+      //  Start the data collection process via websocket
       this.toastStepCount=0
       this.socket.send("selenium");
-      //const data = await fetch("http://localhost:3000/selenium/");
-      // console.log(data);
+
+    },
+    ongridReady(params){
+      this.gridReady=true;
+      this.gridParams = params;
+      this.fetchData();
+    },
+    fetchData(){
+      if (this.gridReady && this.socketReady){
+        console.log('Grid is ready');
+        this.socket.send("getGridData")
+      }
+        return;
+        // const response = await fetch('http://localhost:3000/api/getGridData');
+        // const data = await response.json();
+        
+        // //console.log(response);
+        // this.rowData=data.gridData;
+
+        // this.filterOptions = data.allTags.map((tag) => {return {'name':tag,'code':tag}});
+        // gridApi.sizeColumnsToFit();
     }
   }
 }
