@@ -63,6 +63,8 @@ wss.on('connection', function connection(ws) {
       'data':returnResult
     }));
     
+    }else if (message=='metadata'){
+      updateGameMetadata(ws);
     }
     // Handle incoming message
   });
@@ -74,10 +76,44 @@ wss.on('connection', function connection(ws) {
 import {db,queries} from './databaseManager.js'
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+async function updateGameMetadata(ws,mode) {
+  const queryString = `SELECT distinct steamAppId from game inner join steamApp on game.steamAppId = steamApp.steam_app_id
+  where game.steamAppId != -1 and (steamApp.updated is null or steamApp.updated <= DATE('now','-1 day'))`
+  const rows = db.prepare(queryString).all(); // TODO move to queries
+  // const rows = db.prepare(`SELECT distinct steamAppId FROM game where steamAppId != -1 and (updated is null or updated <= DATE('now', '-1 day'))`).all(); // TODO move to queries
+  
+  const update = db.prepare(`UPDATE steamApp SET tags = ?, posReviews = ?, negReviews = ?, updated = DATE('now') WHERE steam_app_id = ?`); 
+  let cnt = 0;
+  console.log(`Retrieving tags and reviews for ${rows.length} games.`);
+  const requestDelay=1000;
+  for (let row of rows){
+    cnt++;
+    let url = `https://steamspy.com/api.php?request=appdetails&appid=${row.steamAppId}`
+    // const response = await fetch(url);
+    // const data = await response.json();
+    // const tags = Object.keys(data.tags)
+    // const posRev = data.positive;
+    // const negRev = data.negative;
+    // update.run(JSON.stringify(tags),posRev,negRev, row.steamAppId);
+    await delay(requestDelay); // Sleep for 1s to respect rate limit listed in API.
+    ws.send(JSON.stringify({'type':'metadata','data':{
+      'total':rows.length,
+      'finished':cnt,
+      requestDelay
+      }}));
+
+  }
+
+
+}
 // This endpoint will handle populating all tags, reviews, etc from SteamSpy for every game the user has access to.
 app.get("/api/refreshAllGameData", async (req,res) => {
-  const rows = db.prepare('SELECT distinct steamAppId FROM game where steamAppId != -1').all(); // TODO move to queries
-  const update = db.prepare('UPDATE steamApp SET tags = ?, posReviews = ?, negReviews = ? WHERE steam_app_id = ?'); 
+  const queryString = `SELECT distinct steamAppId from game inner join steamApp on game.steamAppId = steamApp.steam_app_id
+  where game.steamAppId != -1 and (steamApp.updated is null or steamApp.updated <= DATE('now','-1 day'))`
+  const rows = db.prepare(queryString).all(); // TODO move to queries
+  // const rows = db.prepare(`SELECT distinct steamAppId FROM game where steamAppId != -1 and (updated is null or updated <= DATE('now', '-1 day'))`).all(); // TODO move to queries
+  
+  const update = db.prepare(`UPDATE steamApp SET tags = ?, posReviews = ?, negReviews = ?, updated = DATE('now') WHERE steam_app_id = ?`); 
   let cnt = 0;
   console.log(`Retrieving tags and reviews for ${rows.length} games.`);
   for (let row of rows){
@@ -89,6 +125,7 @@ app.get("/api/refreshAllGameData", async (req,res) => {
     const posRev = data.positive;
     const negRev = data.negative;
     update.run(JSON.stringify(tags),posRev,negRev, row.steamAppId);
+    return; 
     await delay(300);
     if (cnt%50==0){
       console.log(`Updated ${cnt}/${rows.length} (${cnt/rows.length}%)`)
@@ -110,7 +147,7 @@ async function loadHBData(data,ws){
      // Ignore this error for now, appears just to be due to the table not being around the first time
   }
   // Refresh steam data
-  getAllSteamApps();
+  await getAllSteamApps();
 
   let skip=false;
   const choiceRequests=[];

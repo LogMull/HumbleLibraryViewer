@@ -1,8 +1,27 @@
 <template >
   <div class=" w-100 vh-100" >
     <div  class="h1">Humble Bundle Game Vuer </div>
-    <button class="btn btn-primary" caption="Get Game Data" @click="loadGameData">Get Game Data</button>
-    <GridSample  @grid-ready="ongridReady" :rowData="gridRows"/>
+        <div class="dropdown">
+      <button
+        class="btn btn-secondary dropdown-toggle"
+        type="button"
+        id="dropdownMenuButton1"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+      >
+        Actions
+      </button>
+      <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+        <li><a class="dropdown-item" @click="loadGameData" href="#">Get Game Data</a></li>
+        <li><a class="dropdown-item" href="#" @click="onclickMetadata('all')">Update All Metadata</a></li>
+        <li><a class="dropdown-item" href="#">Something else here</a></li>
+      </ul>
+    </div>
+    <div class="d-flex flex-column"> 
+    <!-- <button class="btn btn-primary" caption="Get Game Data" @click="loadGameData">Get Game Data</button>
+    <button class="btn btn-secondary" caption="Update All Metadata" @click="onclickMetadata('all')">Update All Metadata</button> -->
+  </div>
+    <GridSample  @grid-ready="ongridReady" :rowData="rowData"/>
   </div>
   
 
@@ -29,12 +48,18 @@ export default {
       gridParams:null,
       gridReady:false,
       socketReady:false,
-      gridRows:[]
+      rowData:[],
+      testStr:'123'
     }
   },
   async mounted(){
     console.log('Mounting')
-
+    const $toast = useToast();
+    let instance = $toast.success(this.testStr);
+    instance.dismiss()
+    this.testStr='567'
+    instance = $toast.success(this.testStr);
+    
     this.socket = new WebSocket('ws://localhost:8080');
     this.socket.onopen = () => {
         console.log("WebSocket connected");
@@ -49,6 +74,7 @@ export default {
       const data = JSON.parse(event.data);
       if (data.type=='selenium') {
         if (data.message == 'done'){
+          this.fetchData();
           return;
         }
         const toast = useToast();
@@ -59,9 +85,11 @@ export default {
   
       }else if (data.type=='getGridData'){
         this.gridParams.api.setGridOption("rowData",data.data.gridData);
-        this.gridRows = [...data.data.gridData];
-        //this.gridRows = data.data.gridData
-        console.log(this.gridRows);
+        //this.rowData = [...data.data.gridData];
+        //this.rowData = data.data.gridData
+        console.log(this.rowData);
+      }else if (data.type=='metadata'){
+
       }
       console.log(event);
       // Handle received message
@@ -91,15 +119,18 @@ export default {
         console.log('Grid is ready');
         this.socket.send("getGridData")
       }
-        return;
-        // const response = await fetch('http://localhost:3000/api/getGridData');
-        // const data = await response.json();
-        
-        // //console.log(response);
-        // this.rowData=data.gridData;
+      return;
+      // const response = await fetch('http://localhost:3000/api/getGridData');
+      // const data = await response.json();
+      
+      // //console.log(response);
+      // this.rowData=data.gridData;
+      // gridApi.sizeColumnsToFit();
 
         // this.filterOptions = data.allTags.map((tag) => {return {'name':tag,'code':tag}});
-        // gridApi.sizeColumnsToFit();
+    },
+    onclickMetadata(){
+      this.socket.send("metadata")
     }
   }
 }

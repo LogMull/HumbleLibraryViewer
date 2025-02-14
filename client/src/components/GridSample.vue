@@ -16,7 +16,7 @@
     </ul>
   </div>
 -->
-    <div v-if="rowData.length" style="height: 500px; width: 100%;">
+    <div v-if="rowData.length >0" style="height: 500px; width: 100%;">
       <div class="d-flex justify-content-center mb-3">  
       <div class="w-25">  
         <div class="label label-secondary mb-3">Filter by Tag</div>
@@ -116,7 +116,7 @@ ModuleRegistry.registerModules([
         matchAll:false,
         excludeunClaimed:false,
         excludeClaimed:false,
-        rowData: [],
+        rowData: [{'game':'No Data detected','appId':-1,'bundle':'Use "Get Game Data" above to load data'}],
         columnDefs: [
           { headerName:'Game', field: 'game', width:375, cellClass: 'leftAlign',
             cellRenderer: params => {
@@ -205,7 +205,7 @@ ModuleRegistry.registerModules([
         this.gridApi = params.api;
         this.gridColumnApi = params.columnApi;
         this.$emit('grid-ready',params);
-        return;
+        //return;
         // const response = await fetch('http://localhost:3000/api/getGridData');
         // const data = await response.json();
         
@@ -213,7 +213,7 @@ ModuleRegistry.registerModules([
         // this.rowData=data.gridData;
 
         // this.filterOptions = data.allTags.map((tag) => {return {'name':tag,'code':tag}});
-        // this.gridApi.sizeColumnsToFit();
+        this.gridApi.sizeColumnsToFit();
 
       },
     },
